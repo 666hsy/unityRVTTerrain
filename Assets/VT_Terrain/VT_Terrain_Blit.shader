@@ -1,49 +1,49 @@
 ﻿Shader "VT_Terrain_Blit"
 {
 	Properties
-	{ [HideInInspector] _Control("Control (RGBA)", 2D) = "red" {}
+	{	[HideInInspector]
+		_Control("Control (RGBA)", 2D) = "red" {}
 		_MainTex("Texture", 2D) = "white" {}
-
 	}
-		SubShader
+	
+	SubShader
 	{
 		Tags { "RenderType" = "Opaque" }
 		LOD 100
-		
-		Pass
+		Pass	// 0
 		{
 			cull off
 			ztest always
-		zwrite off
+			zwrite off
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
-          
 
 			#include "UnityCG.cginc"
  
-			sampler2D _Control0;
-		float4 _Control0_ST;
+			sampler2D _Control0;	//权重图
+			float4 _Control0_ST;
 
-		sampler2D _Control1;
-		float4 _Control1_ST;
-		sampler2D _Control2;
-		float4 _Control2_ST;
+			sampler2D _Control1;
+			float4 _Control1_ST;
+			sampler2D _Control2;
+			float4 _Control2_ST;
 
-		sampler2D _Control3;
-		float4 _Control3_ST;
-		float4  blitOffsetScale;
-		float4  tileData[16];
-
-
-		UNITY_DECLARE_TEX2DARRAY(albedoAtlas);
-		UNITY_DECLARE_TEX2DARRAY(normalAtlas);
+			sampler2D _Control3;
+			float4 _Control3_ST;
+			
+			//用于控制纹理采样的偏移和缩放。
+			float4  blitOffsetScale;
+			float4  tileData[16];
+			
+			UNITY_DECLARE_TEX2DARRAY(albedoAtlas);
+			UNITY_DECLARE_TEX2DARRAY(normalAtlas);
 			struct appdata
 			{
 				float4 vertex : POSITION;
 				float2 uv : TEXCOORD0;
 				float3 normal : NORMAL;
-				float4 tangent : TANGENT;
+				float4 tangent : TANGENT;	//切线向量
 			};
 			struct PixelOutput {
 				float4 col0 : COLOR0;
@@ -53,47 +53,34 @@
 			struct v2f
 			{
 				float2 tc_Control0 : TEXCOORD0;
-			 
 				float4 vertex : SV_POSITION;
 			};
 
 			void SplatmapMix(sampler2D _Control, int passIndex, v2f IN, out half4 splat_control, out half weight, out fixed4 mixedDiffuse, out fixed3 mixedNormal)
-
 			{
-				splat_control = tex2D(_Control, IN.tc_Control0);
+				splat_control = tex2D(_Control, IN.tc_Control0);	//得到各材质的权重
 
-				weight = dot(splat_control, half4(1, 1, 1, 1));
+				weight = dot(splat_control, half4(1, 1, 1, 1));		//计算向量各个分量的总和
 
 #if !defined(SHADER_API_MOBILE) && defined(TERRAIN_SPLAT_ADDPASS)
 				clip(weight == 0.0f ? -1 : 1);
 #endif
-
-				// Normalize weights before lighting and restore weights in final modifier functions so that the overal
-				// lighting result can be correctly weighted.
-				splat_control /= (weight + 1e-3f);
+				
+				splat_control /= (weight + 1e-3f);	//对 splat_control 向量的四个分量进行归一化处理
 
 				mixedDiffuse = 0.0f;
 				mixedNormal = 0.0f;
-// #ifdef _BLIT_ALBEDO
-
 				mixedDiffuse += splat_control.r * UNITY_SAMPLE_TEX2DARRAY(albedoAtlas, float3(IN.tc_Control0 * tileData[passIndex * 4].xy, passIndex * 4));
 				mixedDiffuse += splat_control.g * UNITY_SAMPLE_TEX2DARRAY(albedoAtlas, float3(IN.tc_Control0 * tileData[passIndex * 4 + 1].xy, passIndex * 4 + 1));
 				mixedDiffuse += splat_control.b * UNITY_SAMPLE_TEX2DARRAY(albedoAtlas, float3(IN.tc_Control0 * tileData[passIndex * 4 + 2].xy, passIndex * 4 + 2));
 				mixedDiffuse += splat_control.a * UNITY_SAMPLE_TEX2DARRAY(albedoAtlas, float3(IN.tc_Control0 * tileData[passIndex * 4 + 3].xy, passIndex * 4 + 3));
-
- //#else
-
-
+				
 				fixed4 nrm = 0.0f;
 				nrm += splat_control.r * UNITY_SAMPLE_TEX2DARRAY(normalAtlas, float3(IN.tc_Control0 * tileData[passIndex * 4].xy, passIndex * 4));
 				nrm += splat_control.g * UNITY_SAMPLE_TEX2DARRAY(normalAtlas, float3(IN.tc_Control0 * tileData[passIndex * 4 + 1].xy, passIndex * 4 + 1));
 				nrm += splat_control.b * UNITY_SAMPLE_TEX2DARRAY(normalAtlas, float3(IN.tc_Control0 * tileData[passIndex * 4 + 2].xy, passIndex * 4 + 2));
 				nrm += splat_control.a * UNITY_SAMPLE_TEX2DARRAY(normalAtlas, float3(IN.tc_Control0 * tileData[passIndex * 4 + 3].xy, passIndex * 4 + 3));
 				mixedNormal = UnpackNormal(nrm);
-
-
-// #endif
-
 			}
 
 			v2f vert(appdata v)
@@ -104,8 +91,6 @@
 				v.uv.xy *= blitOffsetScale.zw;
 				v.uv.xy += blitOffsetScale.xy;
 				o.tc_Control0 = TRANSFORM_TEX(v.uv, _Control0);
-			 
-			 
 
 				v.normal = half3(0, 1, 0);
 
@@ -113,40 +98,36 @@
 				v.tangent.w = -1;
 				return o;
 			}
- 
-
+			
 			PixelOutput frag(v2f IN) 
 			{
-
 				half4 splat_control;
-			half weight;
-			fixed4 mixedDiffuse;
-			fixed3 mixedNormal;
-			fixed4 DiffuseAll = 0;
-			fixed3 NormalAll = 0;
-			SplatmapMix(_Control0,0, IN, splat_control, weight, mixedDiffuse, mixedNormal);
-			DiffuseAll += mixedDiffuse * weight;
-			NormalAll += (mixedNormal * weight);
-			SplatmapMix(_Control1,1, IN, splat_control, weight, mixedDiffuse, mixedNormal);
-			DiffuseAll += mixedDiffuse * weight;
-			NormalAll += (mixedNormal * weight);
+				half weight;
+				fixed4 mixedDiffuse;
+				fixed3 mixedNormal;
+				fixed4 DiffuseAll = 0;
+				fixed3 NormalAll = 0;
+				SplatmapMix(_Control0,0, IN, splat_control, weight, mixedDiffuse, mixedNormal);
+				DiffuseAll += mixedDiffuse * weight;
+				NormalAll += (mixedNormal * weight);
+				SplatmapMix(_Control1,1, IN, splat_control, weight, mixedDiffuse, mixedNormal);
+				DiffuseAll += mixedDiffuse * weight;
+				NormalAll += (mixedNormal * weight);
 
-			SplatmapMix(_Control2,2, IN, splat_control, weight, mixedDiffuse, mixedNormal);
-			DiffuseAll += mixedDiffuse * weight;
-			NormalAll += (mixedNormal * weight);
+				SplatmapMix(_Control2,2, IN, splat_control, weight, mixedDiffuse, mixedNormal);
+				DiffuseAll += mixedDiffuse * weight;
+				NormalAll += (mixedNormal * weight);
 
-			//SplatmapMix(_Control3, 3, IN, splat_control, weight, mixedDiffuse, mixedNormal);
-			//DiffuseAll += mixedDiffuse * weight;
-			//NormalAll += (mixedNormal * weight);
-			PixelOutput po;
-			po.col0 =  DiffuseAll;
-			po.col1 =   half4(NormalAll.xyz * 0.5 + 0.5, 1);
- 
-			return po;
+				SplatmapMix(_Control3,3, IN, splat_control, weight, mixedDiffuse, mixedNormal);
+				DiffuseAll += mixedDiffuse * weight;
+				NormalAll += (mixedNormal * weight);
+				
+				PixelOutput po;
+				po.col0 = DiffuseAll;
+				po.col1 = half4(NormalAll.xyz * 0.5 + 0.5, 1);
+				return po;
 			}
- 
- 
-				ENDCG
-			}
+			ENDCG
+		}
 	}
 }

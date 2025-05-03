@@ -1,58 +1,37 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
-public class VirtualCapture : MonoBehaviour {
+public class VirtualCapture : MonoBehaviour
+{
 	private Material captureMat;
 	public Shader captureShader;
 	public TerrainData terrainData;
-
 	public Texture2DArray albedoAtlas;
 	public Texture2DArray normalAtlas;
 	public RenderTexture[] clipRTs;
 	private RenderBuffer[] mrtRB = new RenderBuffer[2];
 	public int mipmapCount;
 	public const int virtualTextArraySize = 512;
-	// Use this for initialization
-	void Awake () {
-		
+    
+	void Awake () 
+    {
 		mipmapCount = (int)Mathf.Log(virtualTextArraySize, 2);
 		clipRTs = new RenderTexture[2];// 
 		for (int i = 0; i < clipRTs.Length; i++)
 		{
-
-			clipRTs[i] = new RenderTexture(virtualTextArraySize, virtualTextArraySize, 16, i == 0 ? RenderTextureFormat.ARGB32 : RenderTextureFormat.ARGB32, i == 0 ? RenderTextureReadWrite.sRGB : RenderTextureReadWrite.Linear);
+			clipRTs[i] = new RenderTexture(virtualTextArraySize, virtualTextArraySize, 16, RenderTextureFormat.ARGB32, i == 0 ? RenderTextureReadWrite.sRGB : RenderTextureReadWrite.Linear);
 			clipRTs[i].useMipMap = true;
 			clipRTs[i].autoGenerateMips = false;
 			clipRTs[i].Create();
-
 		}
 
-
-
-
-
-
-
-
 		captureMat = new Material(captureShader);
-            for (int k = 0; k < terrainData.alphamapTextures.Length; k++)
-            {
-			captureMat.SetTexture("_Control"+k, terrainData.alphamapTextures[k]);
-			}
-			
- 
-
-		 
+        for (int k = 0; k < terrainData.alphamapTextures.Length; k++)	//共16层材质，所以Length应该是4，每张纹理可以混合四种材质
+            captureMat.SetTexture("_Control"+k, terrainData.alphamapTextures[k]);
 
 		var tileData = new Vector4[terrainData.splatPrototypes.Length];
 		for (int i = 0; i < tileData.Length; i++)
-		{
 			tileData[i] = new Vector4(terrainData.size.x / terrainData.splatPrototypes[i].tileSize.x, terrainData.size.z / terrainData.splatPrototypes[i].tileSize.y, 0, 0);
 
-
-		}
- 
 		Shader.SetGlobalTexture("albedoAtlas", albedoAtlas);
 		Shader.SetGlobalTexture("normalAtlas", normalAtlas);
 		Shader.SetGlobalVectorArray("tileData", tileData);
@@ -60,43 +39,19 @@ public class VirtualCapture : MonoBehaviour {
 
 		//mrt mode
 		mrtRB = new RenderBuffer[] { clipRTs[0].colorBuffer, clipRTs[1].colorBuffer };
-		 
-
-	}
-	void OnDestroy()
-	{
-		if (clipRTs != null)
-		{
-			for (int i = 0; i < clipRTs.Length; i++)
-			{
-
-				clipRTs[i].Release();
-
-
-			}
-		}
-
 	}
  
- 
-	public void  virtualCapture_MRT(Vector2 center, float size, out RenderTexture albedoRT,out RenderTexture normalRT)
+	public void virtualCapture_MRT(Vector2 center, float size, out RenderTexture albedoRT,out RenderTexture normalRT)
 	{
-
 		int terrainSize = (int)terrainData.size.x;
-
 		Shader.SetGlobalVector("blitOffsetScale", new Vector4((center.x - size / 2) / terrainSize, (center.y - size / 2) / terrainSize, (size) / terrainSize, (size) / terrainSize));
-
 		RenderTexture oldRT = RenderTexture.active;
-
 		Graphics.SetRenderTarget(mrtRB,clipRTs[0].depthBuffer);
-
 		GL.Clear(false, true, Color.clear);
-
 		GL.PushMatrix();
 		GL.LoadOrtho();
 
 		captureMat.SetPass(0);     //Pass 0 outputs 2 render textures.
-
 		//Render the full screen quad manually.
 		GL.Begin(GL.QUADS);
 		GL.TexCoord2(0.0f, 0.0f); GL.Vertex3(0.0f, 0.0f, 0.1f);
@@ -112,6 +67,15 @@ public class VirtualCapture : MonoBehaviour {
 		normalRT = clipRTs[1];
 		albedoRT.GenerateMips();
 		normalRT.GenerateMips();
+	}
+	
+	void OnDestroy()
+	{
+		if (clipRTs != null)
+		{
+			for (int i = 0; i < clipRTs.Length; i++)
+				clipRTs[i].Release();
+		}
 	}
 
 #if UNITY_EDITOR
@@ -131,25 +95,14 @@ public class VirtualCapture : MonoBehaviour {
 
 		for (int index = 0; index < arrayLen; index++)
 		{
-		  
-
-				if (index >= terrainData.splatPrototypes.Length) break;
-				print(index);
-				for (int k = 0; k < terrainData.splatPrototypes[index].texture.mipmapCount; k++)
-				{
-					Graphics.CopyTexture(terrainData.splatPrototypes[index].texture, 0, k, albedoAtlas, index, k);
-
-				}
-				for (int k = 0; k < terrainData.splatPrototypes[index].normalMap.mipmapCount; k++)
-				{
-					Graphics.CopyTexture(terrainData.splatPrototypes[index].normalMap, 0, k, normalAtlas, index, k);
-
-				}
-
-			 
+            if (index >= terrainData.splatPrototypes.Length) 
+                break;
+            print(index);
+            for (int k = 0; k < terrainData.splatPrototypes[index].texture.mipmapCount; k++)
+                Graphics.CopyTexture(terrainData.splatPrototypes[index].texture, 0, k, albedoAtlas, index, k);
+            for (int k = 0; k < terrainData.splatPrototypes[index].normalMap.mipmapCount; k++)
+                Graphics.CopyTexture(terrainData.splatPrototypes[index].normalMap, 0, k, normalAtlas, index, k);
 		}
-
-
 	}
 #endif
 }
