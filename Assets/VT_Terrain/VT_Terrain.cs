@@ -498,7 +498,6 @@ public class VT_Terrain : MonoBehaviour
         {
             waitingLoadQueue.Enqueue(item);
         }
-        // print("loadata:" + item.physicTexIndex);
     }
 
     private void loadQueue()
